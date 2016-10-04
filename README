@@ -1,0 +1,3 @@
+Simple package for reading and writing to I2C devices on Raspberry Pi.
+
+Package uses library 'picom' found at https://github.com/acs9307/picom
