@@ -11,6 +11,8 @@ find_package(catkin REQUIRED COMPONENTS
   message_generation
 )
 
+set(CMAKE_CXX_FLAGS "-std=c++11")
+
 ## System dependencies are found with CMake's conventions
 # find_package(Boost REQUIRED COMPONENTS system)
 
@@ -115,14 +117,13 @@ catkin_package(
 ## Your package locations should be listed before other locations
 # include_directories(include)
 include_directories(
-	include
-	${catkin_INCLUDE_DIRS}
-	/usr/local/include/
-	/usr/include/
+	include ${catkin_INCLUDE_DIRS} /usr/local/include
 )
 
 ## Declare a C++ library
-add_library(picom STATIC /usr/local/lib/libpicom.a)
+#add_library(picom STATIC /usr/local/lib/libpicom.a)
+	#Tell CMake that we are linking a library written in C. 
+#set_target_properties(picom PROPERTIES LINKER_LANGUAGE C)
 
 ## Add cmake target dependencies of the library
 ## as an example, code may need to be generated before libraries
@@ -130,19 +131,23 @@ add_library(picom STATIC /usr/local/lib/libpicom.a)
 #add_dependencies(i2c_srv ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 
 ## Declare a C++ executable
-add_executable(i2c_srv 
-	src/i2c_srv.cpp
-)
+add_executable(i2c_srv src/i2c_srv.cpp)
+add_executable(test_i2c_in src/test_i2c_in.cpp)
+add_executable(test_i2c_out src/test_i2c_out.cpp)
 
 ## Add cmake target dependencies of the executable
 ## same as for the library above
  add_dependencies(i2c_srv ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+ add_dependencies(test_i2c_in ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+ add_dependencies(test_i2c_out ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 
-## Specify libraries to link a library or executable target against
-target_link_libraries(i2c_srv
-  
-)
-
+ ## Specify libraries to link a library or executable target against
+link_directories(/usr/local/lib)
+#target_link_libraries(i2c_srv libpicom.a)
+target_link_libraries(i2c_srv ${catkin_LIBRARIES} /usr/local/lib/libpicom.a)
+target_link_libraries(test_i2c_in ${catkin_LIBRARIES})
+target_link_libraries(test_i2c_out ${catkin_LIBRARIES})
+ 
 #############
 ## Install ##
 #############
