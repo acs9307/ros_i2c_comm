@@ -1,4 +1,5 @@
 uint8 addr
-uint64 dataLen
+uint32 dataLen
 ---
-string data
+uint8[] data
+uint32 dataLen

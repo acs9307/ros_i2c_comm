@@ -1,13 +1,16 @@
 #include <ros/ros.h>
-#include <std_msgs/String.h>
-#include <vector>
 #include <i2c_comm/I2CIn.h>
 #include <i2c_comm/I2COut.h>
-#include <alib-c/alib_error.h>
+#include <std_msgs/String.h>
+
+#include <vector>
+#include <iostream>
+#include <map>
 
 extern "C"
 {
 	#include <picom/i2c.h>
+	#include <alib-c/alib_error.h>
 }
 
 /* Map of file descriptors to I2C devices. 
@@ -16,7 +19,6 @@ std::map<uint8_t, int> fds;
 
 int reconnectSlave(uint8_t addr)
 {
-	#if 1
 	/* Close the old socket if it was open. */
 	int fd = fds[addr];
 	if(fd > 0)
@@ -32,9 +34,6 @@ int reconnectSlave(uint8_t addr)
 	}
 	
 	return(fd);
-	#else
-		return(-1);
-	#endif
 }
 int getSlave(uint8_t addr)
 {
@@ -46,7 +45,7 @@ int getSlave(uint8_t addr)
 }
 
 //bool i2c_out(uint8_t addr, std_msgs::String& data)
-bool i2c_out(uint8_t addr, std::string& data)
+bool i2c_out(uint8_t addr, std::vector<uint8_t>& data)
 {
 	/* Get the file descriptor. */
 	int fd = getSlave(addr);
@@ -54,7 +53,7 @@ bool i2c_out(uint8_t addr, std::string& data)
 		return(false);
 	
 	/* Write the data. */
-	int err = write(fd, data.c_str(), data.length() + 1);
+	int err = write(fd, &data[0], data.size());
 	if(err < 0)
 	{
 		ROS_INFO("Write failed, attempting to reconnect to slave %d.", addr);
@@ -62,46 +61,37 @@ bool i2c_out(uint8_t addr, std::string& data)
 		if(fd <= 0)
 			return(false);
 		
-		err = write(fd, data.c_str(), data.length() + 1);
+		err = write(fd, &data[0], data.size());
 		if(err < 0)
 		{
 			ROS_INFO("Second write attempt to %d failed!", addr);
 			return(false);
 		}		
 	}
-	else if(err != data.length() + 1)
+	else if(err != data.size())
 		ROS_INFO("Wrote %d bytes to slave %d, should have written %d bytes.",
-			err, addr, data.length());
+			err, addr, data.size());
 	
 	return(true);
 }
-alib_error i2c_in(uint8_t addr, uint64_t readCount, std::string& res)
+int32_t i2c_in(uint8_t addr, std::vector<uint8_t>& data, uint32_t dataLen)
 {
+	if(data.size() < dataLen)
+		data.resize(dataLen);
+	
 	int fd = getSlave(addr);
 	if(fd <= 0)
 		return ALIB_BAD_ARG;
 	
-	alib_error err = ALIB_OK;
-	char* dataIn = new char[readCount + 1];
-	memset(dataIn, 0, readCount + 1);
-	if(dataIn)
+	int32_t err = read(fd, &data[0], dataLen);
+	if(err < 0)
 	{
-		int err = read(fd, dataIn, readCount);
-		if(err < 0)
+		fd = reconnectSlave(addr);
+		if(fd <= 0 || read(fd, &data[0], dataLen) < 0)
 		{
-			fd = reconnectSlave(addr);
-			if(fd <= 0 || read(fd, dataIn, readCount) < 0)
-			{
-				ROS_INFO("Error reading data from %d.  Errno: %d", addr, errno);
-				err = ALIB_UNKNOWN_ERR;
-				goto if_error;
-			}
+			ROS_INFO("Error reading data from %d.  Errno: %d", addr, errno);
+			err = ALIB_UNKNOWN_ERR;
 		}
-		
-		res = dataIn;
-		
-	if_error:
-		delete[] dataIn;
 	}
 	
 	return(err);
@@ -112,9 +102,7 @@ alib_error i2c_in(uint8_t addr, uint64_t readCount, std::string& res)
  * Arguments:
  * 	Request:
  * 		uint8_t addr - I2C device address. 
- * 		string	data - Data to transmit to slave. 
- * 	Response:
- * 		bool success - True if the operation completed successfully. 
+ * 		std::vector<uint8_t> data - Data to transmit to slave. 
  *
  * Returns:
  * 		true:  Message successfully sent. 
@@ -122,27 +110,36 @@ alib_error i2c_in(uint8_t addr, uint64_t readCount, std::string& res)
  * 			file descriptor was probably not open or could not be opened. */
 bool i2c_out_cb(i2c_comm::I2COut::Request& req, i2c_comm::I2COut::Response& res)
 {
-	res.success = i2c_out(req.addr, req.data);
-	return(res.success);
+	return(i2c_out(req.addr, req.data));
 }
 /* Reads a message from a specific I2C device. 
  *
  * Arguments:
  * 		Requests:
  *			uint8_t addr     - I2C device address. 
- *			uint64_t dataLen - Number of bytes to read. 
+ *			uint32_t dataLen - Number of bytes to read. 
  *		Response:
- *			string data - The data received from the slave. 
+ *			std::vector<uint8_t> data - The data received from the slave. 
+ * 			uint32_t dataLen - The number of bytes read.
  *
  * Returns:
- *		The data received from the slave. */
+ * 		true:  Message successfully sent. 
+ * 		false: Message could not be successfully sent. The  
+ * 			file descriptor was probably not open or could not be opened. */
 bool i2c_in_cb(i2c_comm::I2CIn::Request& req, 
 	i2c_comm::I2CIn::Response& res)
-{
-	if(i2c_in(req.addr, req.dataLen, res.data) == ALIB_OK)
-		return(true);
-	else
+{	
+	int32_t result = i2c_in(req.addr, res.data, req.dataLen);
+	if(result < 0)
+	{
+		res.dataLen = 0;
 		return(false);
+	}
+	else
+	{
+		res.dataLen = result;
+		return(true);
+	}
 }
 
 int main(int argc, char** argv)

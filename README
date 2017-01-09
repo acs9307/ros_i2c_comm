@@ -1,3 +1,6 @@
 Simple package for reading and writing to I2C devices on Raspberry Pi.
 
 Package uses library 'picom' found at https://github.com/acs9307/picom
+
+Notes:
+	When reading from an arduino slave, all bytes will first be set to 255 before returning.  Reguardless of how much data should be returned, the number of bytes requested will be returned from Arduino.  If 32 bytes are requested, but only 10 are returned, then the last 22 bytes will be set to 255.
