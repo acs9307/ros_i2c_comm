@@ -12,34 +12,35 @@ int main(int argc, char** argv)
 	i2c_comm::I2COut args;
 	args.request.addr = 8;
 	
-	char inBuff[1024] = {0};
-	std::cout<<"Type in the data to send.\n";
+	const size_t buffSize = 64 * 1024;
+	char buff[buffSize];
 	
-	while(1)
+	std::cout<<"Type in the data to send.\n";	
+	std::cout<<"DEBUG1\n";
+	memset(buff, 0, buffSize);
+	std::fgets((char*)buff, buffSize, stdin);
+	
+	/* Remove new line character. */
+	for(char* it = (char*)buff; *it != 0 && it < (char*)(buff + buffSize); ++it)
 	{
-		memset(inBuff, 0, sizeof(inBuff));
-		std::fgets(inBuff, sizeof(inBuff), stdin);
-		
-		/* Remove new line character. */
-		char* it = inBuff + sizeof(inBuff) - 1;
-		for(; it > inBuff; --it)
+		if(*it == '\n' || *it == '\r')
 		{
-			if(*it == '\n' || *it == '\r')
-			{
-				for(; it > inBuff && (*it == '\n' || *it == '\r'); --it);
-				it[1] = 0;
-			}
+			*it = 0;
+			break;
 		}
-		args.request.data = inBuff;
-		
-		if(outClient.call(args))
-		{
-			ROS_INFO("Successfully sent \"%s\".", args.request.data.c_str());
-		}
-		else
-		{
-			ROS_INFO("Error occurred sending data.");
-		}
+	}
+	std::string strData = buff;
+	
+	args.request.data = std::vector<uint8_t>((uint8_t*)strData.c_str(), (uint8_t*)(strData.c_str() + strData.length()));
+	std::cout<<"data.size() = "<<args.request.data.size()<<'\n';
+	
+	if(outClient.call(args))
+	{
+		ROS_INFO("Successfully sent %d bytes.", args.request.data.size());
+	}
+	else
+	{
+		ROS_INFO("Error occurred sending data.");
 	}
 	
 	return(0);

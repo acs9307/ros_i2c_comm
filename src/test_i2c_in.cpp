@@ -1,6 +1,7 @@
 #include <ros/ros.h>
 #include <std_msgs/String.h>
 #include <i2c_comm/I2CIn.h>
+#include <vector>
 
 int main(int argc, char** argv)
 {
@@ -10,18 +11,22 @@ int main(int argc, char** argv)
 	i2c_comm::I2CIn args;
 	args.request.addr = 8;
 	args.request.dataLen = 32;
-	args.response.data = "";
+	
 	if(inClient.call(args))
 	{
-		std::string::iterator it = args.response.data.begin();
-		std::string::iterator end = args.response.data.begin() + args.request.dataLen;
-		while(*it != 0 && (uint8_t)*it < 255 && it < end)
-			++it;
-		if(it < end)
-			*it = 0;
+		printf("Received %d bytes: \n", args.response.dataLen);
 		
-		//args.response.data += '\0';
-		ROS_INFO("Received: %s", args.response.data.c_str());
+		auto it = args.response.data.begin();
+		std::string str = "";
+		for(; it < args.response.data.begin() + args.response.dataLen && *it; ++it)
+			str += (char)*it;
+		printf("\tString: %s\n", str.c_str());
+		
+		printf("\tHex: ");
+		it = args.response.data.begin();
+		for(; it < args.response.data.begin() + args.response.dataLen; ++it)
+			printf("0x%x ", *it);
+		printf("\n");
 	}
 	else
 	{
