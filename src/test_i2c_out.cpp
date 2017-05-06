@@ -10,7 +10,11 @@ int main(int argc, char** argv)
 	ros::NodeHandle nh;
 	ros::ServiceClient outClient = nh.serviceClient<i2c_comm::I2COut>("i2c_out");
 	i2c_comm::I2COut args;
-	args.request.addr = 8;
+
+	if(argc > 1)
+		args.request.addr = atoi(*(++argv));
+	else
+		args.request.addr = 8;
 	
 	const size_t buffSize = 64 * 1024;
 	char buff[buffSize];

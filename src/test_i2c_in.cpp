@@ -12,6 +12,12 @@ int main(int argc, char** argv)
 	args.request.addr = 8;
 	args.request.dataLen = 32;
 	
+	if(argc > 1)
+	{
+		++argv;
+		args.request.addr = atoi(*argv);
+	}
+
 	if(inClient.call(args))
 	{
 		printf("Received %d bytes: \n", args.response.dataLen);
